@@ -37,16 +37,9 @@ release/
 backend-assets/
 
 /ggml-metal.metal
-<<<<<<< HEAD
 .env
-pictures/cc1EUUHn.s
-pictures/cc86q29b.s
-pictures/cch1MqnM.s
-pictures/ccj0ZrSv.s
-pictures/ccl2gcGz.s
-pictures/ccOMMq5C.s
+./pictures
 cuda_12.0.0_525.60.13_linux.run
 myapp
 helloworld.cu
-=======
->>>>>>> cb5d6f6e3a3b5be9c1572100680fbfa3865646d1
+pictures/ccPWy1nK.s
