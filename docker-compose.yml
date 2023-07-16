@@ -14,13 +14,12 @@ services:
               capabilities: [gpu]
     ports:
       - 8080:8080
+    env_file:
+      - .env
     environment:
-        - DEBUG=true
         - MODELS_PATH=/models
-        - 'PRELOAD_MODELS=[{"url": "github:ci-robbot/localai-huggingface-zoo/index.yaml","name":"huggingface", "overrides": { "f16":true, "gpu_layers": 35, "mmap": true, "batch": 512 } } ]'        
-        - THREADS=6
+        - 'PRELOAD_MODELS=[{"url": "github:go-skynet/model-gallery/vicuna.yaml","name":"vicuna", "overrides": { "f16":true, "gpu_layers": 200, "mmap": true, "batch": 700 } } ]'        
         - BUILD_TYPE=cublas
-        - REBUILD=true
         - NVIDIA_VISIBLE_DEVICES=all
         - NVIDIA_DRIVER_CAPABILITIES=all
     volumes:
@@ -34,7 +33,11 @@ services:
     restart: always
     ports:
         - 3000:3000
+    environment:
+      - EXECUTION_MODE=child
+      - DEBUG=true
+      - LOG_PATH=./logs
     volumes:
         - ~/.flowise:/root/.flowise
-        - ./logs:/logs/
+        - ./logs/:/logs/
     command: /bin/sh -c "sleep 3; flowise start"
