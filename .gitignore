@@ -43,3 +43,5 @@ cuda_12.0.0_525.60.13_linux.run
 myapp
 helloworld.cu
 ./README.md
+get-pip.py
+.gitignore

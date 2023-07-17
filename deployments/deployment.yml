@@ -1,0 +1,64 @@
+---
+- hosts: all
+  become_user: gregory
+  become: yes
+  tasks:
+  
+  ####################################
+  # Creating a directory on the host #
+  #####################################
+  - name: Create a directory if it does not exist
+    ansible.builtin.file:
+      path: ~/temp/nextcloud/
+      state: directory
+      mode: '0777'
+      
+  ###############################
+  # Checkout the Nextcloud Repo #
+  ###############################
+  - name: Git Checkout Nextcloud
+    ansible.builtin.git:
+      repo: 'https://github.com/gregoryca/nextcloud.git'
+      dest: ~/temp/nextcloud/
+
+  #########################
+  # Copy the compose file #
+  #########################
+  - name: copy Docker Compose files to remote server
+    copy:
+      src: ~/temp/nextcloud/docker-compose.yml
+      dest: ~/srv/nextcloud/
+      remote_src: yes
+    loop:
+    - docker-compose.yml
+    
+  ########################
+  # Copy the config file #
+  ########################
+  - name: copy Nextcloud config file to remote server
+    become: yes
+    become_user: root
+    copy:
+      src: /home/gregory/temp/nextcloud/configurations/config.php
+      dest: /home/gregory/srv/nextcloud/nextcloud/config/config.php
+      remote_src: yes
+    loop:
+    - config.php
+    
+  #######################
+  # deploy compose file #
+  #######################
+  - name: deploy Docker Compose stack on remote server
+    docker_compose:
+      project_src: ~/srv/nextcloud/
+      files:
+      - docker-compose.yml
+      recreate: always
+
+  #########################################
+  # Clean up temp folder after deployment #
+  #########################################
+  - name: Delete content & directory
+    file:
+      state: absent
+      path: ~/temp/

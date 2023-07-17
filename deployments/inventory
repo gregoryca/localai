@@ -1,0 +1,7 @@
+[thuis]
+ai-srv ansible_host=192.168.2.101
+
+[thuis:vars]
+ansible_user = gregory
+ansible_ssh_pass=laliloe
+ansible_sudo_pass=laliloe

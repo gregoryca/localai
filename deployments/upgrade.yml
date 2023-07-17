@@ -1,0 +1,60 @@
+---
+- hosts: localhost
+  gather_facts: False
+  tasks:
+
+  #Stopping container
+    - name: Stop the docker container, local-ai
+      docker_container:
+        name: local-ai
+        state: stopped
+
+  #Stopping container
+    - name: Stop the docker container, flowise-ai
+      docker_container:
+        name: flowise-ai
+        state: stopped
+
+  #Removing/Deleting container
+    - name: Remove container, local-ai
+      docker_container:
+        name: local-ai
+        state: absent
+
+  #Removing/Deleting container
+    - name: Remove container, flowise-ai
+      docker_container:
+        name: flowise-ai
+        state: absent
+
+  #Removing/Deleting Image
+    - name: Remove image, flowise-ai
+      docker_image:
+        name: flowiseai/flowise:latest
+        state: absent
+
+  #Removing/Deleting Image
+    - name: Remove image, local-ai
+      docker_image:
+        name: quay.io/go-skynet/local-ai:master-cublas-cuda12
+        state: absent
+
+  #Pull latest version Image
+    - name: pull an image, flowise-ai
+      docker_image:
+        name: flowiseai/flowise:latest
+        source: pull
+
+  #Pull latest version Image
+    - name: pull an image, local-ai
+      docker_image:
+        name: quay.io/go-skynet/local-ai:master-cublas-cuda12
+        source: pull
+
+  #deploy compose file
+    - name: deploy Docker Compose stack
+      docker_compose:
+        project_src: /home/gregory/srv/localai/
+        files:
+        - docker-compose.yml
+        recreate: always
