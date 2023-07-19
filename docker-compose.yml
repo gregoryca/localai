@@ -3,7 +3,7 @@ version: '3.6'
 services:
   api:
     container_name: local-ai
-    image: quay.io/go-skynet/local-ai:v1.20.0-cublas-cuda12-ffmpeg #master-cublas-cuda12 #v1.20.0-cublas-cuda12-ffmpeg
+    image: quay.io/go-skynet/local-ai:v1.21.0-cublas-cuda12-ffmpeg #master-cublas-cuda12 #v1.20.0-cublas-cuda12-ffmpeg
     restart: always
     deploy:
       resources:
@@ -18,10 +18,10 @@ services:
       - .env
     environment:
         - MODELS_PATH=/models
-        - 'PRELOAD_MODELS=[{"url": "https://raw.githubusercontent.com/go-skynet/model-gallery/main/vicuna.yaml","name":"vicuna", "overrides": { "f16":true, "gpu_layers": 100, "mmap": true, "batch": 700 } } ]'        
         - BUILD_TYPE=cublas
         - NVIDIA_VISIBLE_DEVICES=all
         - NVIDIA_DRIVER_CAPABILITIES=all
+        - DEBUG=true
     volumes:
         - ./models:/models:cached
         - ./pictures/:/tmp/
@@ -34,20 +34,10 @@ services:
     ports:
         - 3000:3000
     environment:
-      - EXECUTION_MODE=child
+      - EXECUTION_MODE=main
       - DEBUG=false
       - LOG_PATH=./logs
     volumes:
         - ~/.flowise:/root/.flowise
         - ./logs/:/logs/
     command: /bin/sh -c "sleep 3; flowise start"
-
-  # langflow:
-  #   container_name: langflow-ai
-  #   restart: always
-  #   image: garystafford/langflow:0.2.0
-  #   security_opt:
-  #     - seccomp:unconfined
-  #   ports:
-  #     - "3000:7860"
-  #   command: langflow --host 0.0.0.0
