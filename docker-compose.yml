@@ -26,6 +26,8 @@ services:
         - ./models:/models:cached
         - ./pictures/:/tmp/
     command: ["/usr/bin/local-ai"]
+    networks:
+      - web-secure
 
   flowise:
     container_name: flowise-ai
@@ -41,3 +43,9 @@ services:
         - ~/.flowise:/root/.flowise
         - ./logs/:/logs/
     command: /bin/sh -c "sleep 3; flowise start"
+    networks:
+      - web-secure
+
+networks:
+  web-secure:
+    external: true
