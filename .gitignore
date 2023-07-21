@@ -45,3 +45,5 @@ helloworld.cu
 ./README.md
 get-pip.py
 .gitignore
+redis/dump.rdb
+.env

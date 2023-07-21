@@ -2,7 +2,7 @@ version: '3.6'
 
 services:
   api:
-    container_name: local-ai
+    container_name: localai
     image: quay.io/go-skynet/local-ai:v1.21.0-cublas-cuda12-ffmpeg #master-cublas-cuda12 #v1.20.0-cublas-cuda12-ffmpeg
     restart: always
     deploy:
@@ -29,8 +29,23 @@ services:
     networks:
       - web-secure
 
+  redis:
+    image: redis:6.2.6
+    container_name: redis.localai
+    command: "redis-server --requirepass ${REDIS_HOST_PASSWORD}"
+    volumes:
+      - ./redis:/data
+    networks:
+      - web-secure
+    restart: unless-stopped
+    environment:
+      - REDIS_REPLICATION_MODE=master
+    ports:
+      - 6379:6379
+
+
   flowise:
-    container_name: flowise-ai
+    container_name: flowise.localai
     image: flowiseai/flowise:latest
     restart: always
     ports:
