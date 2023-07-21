@@ -43,9 +43,8 @@ services:
     ports:
       - 6379:6379
 
-
   flowise:
-    container_name: flowise.localai
+    container_name: localai.flowise
     image: flowiseai/flowise:latest
     restart: always
     ports:
