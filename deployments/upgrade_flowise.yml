@@ -1,0 +1,36 @@
+---
+- hosts: localhost
+  gather_facts: False
+  tasks:
+  
+  #Stopping container
+    - name: Stop the docker container, flowise-ai
+      docker_container:
+        name: flowise-ai
+        state: stopped
+
+  #Removing/Deleting container
+    - name: Remove container, flowise-ai
+      docker_container:
+        name: flowise-ai
+        state: absent
+
+  #Removing/Deleting Image
+    - name: Remove image, flowise-ai
+      docker_image:
+        name: flowiseai/flowise:latest
+        state: absent
+
+  #Pull latest version Image
+    - name: pull an image, flowise-ai
+      docker_image:
+        name: flowiseai/flowise:latest
+        source: pull
+
+  #deploy compose file
+    - name: deploy Docker Compose stack
+      docker_compose:
+        project_src: /home/gregory/srv/localai/
+        files:
+        - docker-compose.yml
+        recreate: always

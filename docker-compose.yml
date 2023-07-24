@@ -31,7 +31,7 @@ services:
 
   redis:
     image: redis:6.2.6
-    container_name: redis.localai
+    container_name: localai.redis
     command: "redis-server --requirepass ${REDIS_HOST_PASSWORD}"
     volumes:
       - ./redis:/data
