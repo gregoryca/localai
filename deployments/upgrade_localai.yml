@@ -6,13 +6,13 @@
   #Stopping container
     - name: Stop the docker container, local-ai
       docker_container:
-        name: local-ai
+        name: localai
         state: stopped
 
   #Removing/Deleting container
     - name: Remove container, local-ai
       docker_container:
-        name: local-ai
+        name: localai
         state: absent
 
   #Removing/Deleting Image
