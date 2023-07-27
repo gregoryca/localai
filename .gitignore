@@ -47,3 +47,17 @@ get-pip.py
 .gitignore
 redis/dump.rdb
 
+model/alpaca.tmpl
+model/ggml-all-MiniLM-L6-v2-f16.bin
+model/ggml-all-MiniLM-L6-v2-f16.bin.tmpl
+model/ggml-gpt4all-chat.tmpl
+model/ggml-gpt4all-completion.tmpl
+model/ggml-gpt4all-j.yaml
+model/ggml-model-gpt4all-falcon-q4_0.bin
+model/ggml-model-gpt4all-falcon-q4_0.bin.tmpl
+model/ggml.yml
+model/gpt4all-chat.tmpl
+model/gpt4all-completion.tmpl
+model/gpt4all-j.yaml
+model/vicuna-completion.tmpl
+model/vicuna.yml
