@@ -18,7 +18,7 @@ import (
 // https://platform.openai.com/docs/api-reference/completions
 func CompletionEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fiber.Ctx) error {
 	process := func(s string, req *OpenAIRequest, config *config.Config, loader *model.ModelLoader, responses chan OpenAIResponse) {
-		ComputeChoices(s, req.N, config, o, loader, func(s string, c *[]Choice) {}, func(s string) bool {
+		ComputeChoices(req, s, config, o, loader, func(s string, c *[]Choice) {}, func(s string) bool {
 			resp := OpenAIResponse{
 				Model: req.Model, // we have to return what the user sent here, due to OpenAI spec.
 				Choices: []Choice{
@@ -38,14 +38,14 @@ func CompletionEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fibe
 	}
 
 	return func(c *fiber.Ctx) error {
-		model, input, err := readInput(c, o.Loader, true)
+		modelFile, input, err := readInput(c, o, true)
 		if err != nil {
 			return fmt.Errorf("failed reading parameters from request:%w", err)
 		}
 
 		log.Debug().Msgf("`input`: %+v", input)
 
-		config, input, err := readConfig(model, input, cm, o.Loader, o.Debug, o.Threads, o.ContextSize, o.F16)
+		config, input, err := readConfig(modelFile, input, cm, o.Loader, o.Debug, o.Threads, o.ContextSize, o.F16)
 		if err != nil {
 			return fmt.Errorf("failed reading parameters from request:%w", err)
 		}
@@ -76,9 +76,7 @@ func CompletionEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fibe
 			predInput := config.PromptStrings[0]
 
 			// A model can have a "file.bin.tmpl" file associated with a prompt template prefix
-			templatedInput, err := o.Loader.TemplatePrefix(templateFile, struct {
-				Input string
-			}{
+			templatedInput, err := o.Loader.EvaluateTemplateForPrompt(model.CompletionPromptTemplate, templateFile, model.PromptTemplateData{
 				Input: predInput,
 			})
 			if err == nil {
@@ -122,11 +120,9 @@ func CompletionEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fibe
 		}
 
 		var result []Choice
-		for _, i := range config.PromptStrings {
+		for k, i := range config.PromptStrings {
 			// A model can have a "file.bin.tmpl" file associated with a prompt template prefix
-			templatedInput, err := o.Loader.TemplatePrefix(templateFile, struct {
-				Input string
-			}{
+			templatedInput, err := o.Loader.EvaluateTemplateForPrompt(model.CompletionPromptTemplate, templateFile, model.PromptTemplateData{
 				Input: i,
 			})
 			if err == nil {
@@ -134,8 +130,8 @@ func CompletionEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fibe
 				log.Debug().Msgf("Template found, input modified to: %s", i)
 			}
 
-			r, err := ComputeChoices(i, input.N, config, o, o.Loader, func(s string, c *[]Choice) {
-				*c = append(*c, Choice{Text: s})
+			r, err := ComputeChoices(input, i, config, o, o.Loader, func(s string, c *[]Choice) {
+				*c = append(*c, Choice{Text: s, FinishReason: "stop", Index: k})
 			}, nil)
 			if err != nil {
 				return err

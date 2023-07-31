@@ -1,17 +1,21 @@
 package backend
 
 import (
+	"context"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
 
 	config "github.com/go-skynet/LocalAI/api/config"
 	"github.com/go-skynet/LocalAI/api/options"
+	"github.com/go-skynet/LocalAI/pkg/gallery"
 	"github.com/go-skynet/LocalAI/pkg/grpc"
 	model "github.com/go-skynet/LocalAI/pkg/model"
+	"github.com/go-skynet/LocalAI/pkg/utils"
 )
 
-func ModelInference(s string, loader *model.ModelLoader, c config.Config, o *options.Option, tokenCallback func(string) bool) (func() (string, error), error) {
+func ModelInference(ctx context.Context, s string, loader *model.ModelLoader, c config.Config, o *options.Option, tokenCallback func(string) bool) (func() (string, error), error) {
 	modelFile := c.Model
 
 	grpcOpts := gRPCModelOpts(c)
@@ -27,12 +31,32 @@ func ModelInference(s string, loader *model.ModelLoader, c config.Config, o *opt
 		model.WithContext(o.Context),
 	}
 
+	for k, v := range o.ExternalGRPCBackends {
+		opts = append(opts, model.WithExternalBackend(k, v))
+	}
+
+	if c.Backend != "" {
+		opts = append(opts, model.WithBackendString(c.Backend))
+	}
+
+	// Check if the modelFile exists, if it doesn't try to load it from the gallery
+	if o.AutoloadGalleries { // experimental
+		if _, err := os.Stat(modelFile); os.IsNotExist(err) {
+			utils.ResetDownloadTimers()
+			// if we failed to load the model, we try to download it
+			err := gallery.InstallModelFromGalleryByName(o.Galleries, modelFile, loader.ModelPath, gallery.GalleryModel{}, utils.DisplayDownloadFunction)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	if c.Backend == "" {
 		inferenceModel, err = loader.GreedyLoader(opts...)
 	} else {
-		opts = append(opts, model.WithBackendString(c.Backend))
 		inferenceModel, err = loader.BackendLoader(opts...)
 	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -43,14 +67,17 @@ func ModelInference(s string, loader *model.ModelLoader, c config.Config, o *opt
 		opts.Prompt = s
 		if tokenCallback != nil {
 			ss := ""
-			err := inferenceModel.PredictStream(o.Context, opts, func(s string) {
-				tokenCallback(s)
-				ss += s
+			err := inferenceModel.PredictStream(ctx, opts, func(s []byte) {
+				tokenCallback(string(s))
+				ss += string(s)
 			})
 			return ss, err
 		} else {
-			reply, err := inferenceModel.Predict(o.Context, opts)
-			return reply.Message, err
+			reply, err := inferenceModel.Predict(ctx, opts)
+			if err != nil {
+				return "", err
+			}
+			return string(reply.Message), err
 		}
 	}
 

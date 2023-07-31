@@ -11,10 +11,15 @@ ARG TARGETARCH
 ARG TARGETVARIANT
 
 ENV BUILD_TYPE=${BUILD_TYPE}
+ENV EXTERNAL_GRPC_BACKENDS="huggingface-embeddings:/build/extra/grpc/huggingface/huggingface.py"
 ARG GO_TAGS="stablediffusion tts"
 
 RUN apt-get update && \
-    apt-get install -y ca-certificates cmake curl patch
+    apt-get install -y ca-certificates cmake curl patch pip
+
+# Extras requirements
+COPY extra/requirements.txt /build/extra/requirements.txt
+RUN pip install -r /build/extra/requirements.txt && rm -rf /build/extra/requirements.txt
 
 # CuBLAS requirements
 RUN if [ "${BUILD_TYPE}" = "cublas" ]; then \
@@ -58,8 +63,8 @@ RUN curl -L "https://github.com/gabime/spdlog/archive/refs/tags/v${SPDLOG_VERSIO
     mkdir -p "lib/Linux-$(uname -m)/piper_phonemize" && \
     curl -L "https://github.com/rhasspy/piper-phonemize/releases/download/v${PIPER_PHONEMIZE_VERSION}/libpiper_phonemize-${TARGETARCH:-$(go env GOARCH)}${TARGETVARIANT}.tar.gz" | \
     tar -C "lib/Linux-$(uname -m)/piper_phonemize" -xzvf - && ls -liah /build/lib/Linux-$(uname -m)/piper_phonemize/ && \
-    cp -rfv /build/lib/Linux-$(uname -m)/piper_phonemize/lib/. /lib64/ && \
     cp -rfv /build/lib/Linux-$(uname -m)/piper_phonemize/lib/. /usr/lib/ && \
+    ln -s /usr/lib/libpiper_phonemize.so /usr/lib/libpiper_phonemize.so.1 && \
     cp -rfv /build/lib/Linux-$(uname -m)/piper_phonemize/include/. /usr/include/
 # \
 #    ; fi

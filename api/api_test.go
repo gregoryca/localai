@@ -30,10 +30,10 @@ import (
 )
 
 type modelApplyRequest struct {
-	ID        string            `json:"id"`
-	URL       string            `json:"url"`
-	Name      string            `json:"name"`
-	Overrides map[string]string `json:"overrides"`
+	ID        string                 `json:"id"`
+	URL       string                 `json:"url"`
+	Name      string                 `json:"name"`
+	Overrides map[string]interface{} `json:"overrides"`
 }
 
 func getModelStatus(url string) (response map[string]interface{}) {
@@ -125,6 +125,11 @@ var _ = Describe("API test", func() {
 	var cancel context.CancelFunc
 	var tmpdir string
 
+	commonOpts := []options.AppOption{
+		options.WithDebug(true),
+		options.WithDisableMessage(true),
+	}
+
 	Context("API with ephemeral models", func() {
 		BeforeEach(func() {
 			var err error
@@ -143,7 +148,7 @@ var _ = Describe("API test", func() {
 					Name:            "bert2",
 					URL:             "https://raw.githubusercontent.com/go-skynet/model-gallery/main/bert-embeddings.yaml",
 					Overrides:       map[string]interface{}{"foo": "bar"},
-					AdditionalFiles: []gallery.File{gallery.File{Filename: "foo.yaml", URI: "https://raw.githubusercontent.com/go-skynet/model-gallery/main/bert-embeddings.yaml"}},
+					AdditionalFiles: []gallery.File{{Filename: "foo.yaml", URI: "https://raw.githubusercontent.com/go-skynet/model-gallery/main/bert-embeddings.yaml"}},
 				},
 			}
 			out, err := yaml.Marshal(g)
@@ -159,9 +164,10 @@ var _ = Describe("API test", func() {
 			}
 
 			app, err = App(
-				options.WithContext(c),
-				options.WithGalleries(galleries),
-				options.WithModelLoader(modelLoader), options.WithBackendAssets(backendAssets), options.WithBackendAssetsOutput(tmpdir))
+				append(commonOpts,
+					options.WithContext(c),
+					options.WithGalleries(galleries),
+					options.WithModelLoader(modelLoader), options.WithBackendAssets(backendAssets), options.WithBackendAssetsOutput(tmpdir))...)
 			Expect(err).ToNot(HaveOccurred())
 			go app.Listen("127.0.0.1:9090")
 
@@ -237,7 +243,7 @@ var _ = Describe("API test", func() {
 				response := postModelApplyRequest("http://127.0.0.1:9090/models/apply", modelApplyRequest{
 					URL:  "https://raw.githubusercontent.com/go-skynet/model-gallery/main/bert-embeddings.yaml",
 					Name: "bert",
-					Overrides: map[string]string{
+					Overrides: map[string]interface{}{
 						"backend": "llama",
 					},
 				})
@@ -263,7 +269,7 @@ var _ = Describe("API test", func() {
 				response := postModelApplyRequest("http://127.0.0.1:9090/models/apply", modelApplyRequest{
 					URL:       "https://raw.githubusercontent.com/go-skynet/model-gallery/main/bert-embeddings.yaml",
 					Name:      "bert",
-					Overrides: map[string]string{},
+					Overrides: map[string]interface{}{},
 				})
 
 				Expect(response["uuid"]).ToNot(BeEmpty(), fmt.Sprint(response))
@@ -291,7 +297,7 @@ var _ = Describe("API test", func() {
 				response := postModelApplyRequest("http://127.0.0.1:9090/models/apply", modelApplyRequest{
 					URL:       "github:go-skynet/model-gallery/openllama_3b.yaml",
 					Name:      "openllama_3b",
-					Overrides: map[string]string{},
+					Overrides: map[string]interface{}{"backend": "llama", "mmap": true, "f16": true, "context_size": 128},
 				})
 
 				Expect(response["uuid"]).ToNot(BeEmpty(), fmt.Sprint(response))
@@ -349,7 +355,7 @@ var _ = Describe("API test", func() {
 				var res map[string]string
 				err = json.Unmarshal([]byte(resp2.Choices[0].Message.FunctionCall.Arguments), &res)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(res["location"]).To(Equal("San Francisco"), fmt.Sprint(res))
+				Expect(res["location"]).To(Equal("San Francisco, California, United States"), fmt.Sprint(res))
 				Expect(res["unit"]).To(Equal("celcius"), fmt.Sprint(res))
 				Expect(string(resp2.Choices[0].FinishReason)).To(Equal("function_call"), fmt.Sprint(resp2.Choices[0].FinishReason))
 			})
@@ -360,9 +366,8 @@ var _ = Describe("API test", func() {
 				}
 
 				response := postModelApplyRequest("http://127.0.0.1:9090/models/apply", modelApplyRequest{
-					URL:       "github:go-skynet/model-gallery/gpt4all-j.yaml",
-					Name:      "gpt4all-j",
-					Overrides: map[string]string{},
+					URL:  "github:go-skynet/model-gallery/gpt4all-j.yaml",
+					Name: "gpt4all-j",
 				})
 
 				Expect(response["uuid"]).ToNot(BeEmpty(), fmt.Sprint(response))
@@ -400,13 +405,14 @@ var _ = Describe("API test", func() {
 			}
 
 			app, err = App(
-				options.WithContext(c),
-				options.WithAudioDir(tmpdir),
-				options.WithImageDir(tmpdir),
-				options.WithGalleries(galleries),
-				options.WithModelLoader(modelLoader),
-				options.WithBackendAssets(backendAssets),
-				options.WithBackendAssetsOutput(tmpdir),
+				append(commonOpts,
+					options.WithContext(c),
+					options.WithAudioDir(tmpdir),
+					options.WithImageDir(tmpdir),
+					options.WithGalleries(galleries),
+					options.WithModelLoader(modelLoader),
+					options.WithBackendAssets(backendAssets),
+					options.WithBackendAssetsOutput(tmpdir))...,
 			)
 			Expect(err).ToNot(HaveOccurred())
 			go app.Listen("127.0.0.1:9090")
@@ -500,7 +506,12 @@ var _ = Describe("API test", func() {
 			c, cancel = context.WithCancel(context.Background())
 
 			var err error
-			app, err = App(options.WithContext(c), options.WithModelLoader(modelLoader))
+			app, err = App(
+				append(commonOpts,
+					options.WithExternalBackend("huggingface", os.Getenv("HUGGINGFACE_GRPC")),
+					options.WithContext(c),
+					options.WithModelLoader(modelLoader),
+				)...)
 			Expect(err).ToNot(HaveOccurred())
 			go app.Listen("127.0.0.1:9090")
 
@@ -524,7 +535,7 @@ var _ = Describe("API test", func() {
 		It("returns the models list", func() {
 			models, err := client.ListModels(context.TODO())
 			Expect(err).ToNot(HaveOccurred())
-			Expect(len(models.Models)).To(Equal(10))
+			Expect(len(models.Models)).To(Equal(11))
 		})
 		It("can generate completions", func() {
 			resp, err := client.CreateCompletion(context.TODO(), openai.CompletionRequest{Model: "testmodel", Prompt: "abcdedfghikl"})
@@ -555,9 +566,10 @@ var _ = Describe("API test", func() {
 		})
 
 		It("returns errors", func() {
+			backends := len(model.AutoLoadBackends) + 1 // +1 for huggingface
 			_, err := client.CreateCompletion(context.TODO(), openai.CompletionRequest{Model: "foomodel", Prompt: "abcdedfghikl"})
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("error, status code: 500, message: could not load model - all backends returned error: 12 errors occurred:"))
+			Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("error, status code: 500, message: could not load model - all backends returned error: %d errors occurred:", backends)))
 		})
 		It("transcribes audio", func() {
 			if runtime.GOOS != "linux" {
@@ -599,6 +611,36 @@ var _ = Describe("API test", func() {
 			)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(resp2.Data[0].Embedding).To(Equal(sunEmbedding))
+		})
+
+		Context("External gRPC calls", func() {
+			It("calculate embeddings with huggingface", func() {
+				if runtime.GOOS != "linux" {
+					Skip("test supported only on linux")
+				}
+				resp, err := client.CreateEmbeddings(
+					context.Background(),
+					openai.EmbeddingRequest{
+						Model: openai.AdaCodeSearchCode,
+						Input: []string{"sun", "cat"},
+					},
+				)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(resp.Data[0].Embedding)).To(BeNumerically("==", 384))
+				Expect(len(resp.Data[1].Embedding)).To(BeNumerically("==", 384))
+
+				sunEmbedding := resp.Data[0].Embedding
+				resp2, err := client.CreateEmbeddings(
+					context.Background(),
+					openai.EmbeddingRequest{
+						Model: openai.AdaCodeSearchCode,
+						Input: []string{"sun"},
+					},
+				)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(resp2.Data[0].Embedding).To(Equal(sunEmbedding))
+				Expect(resp2.Data[0].Embedding).ToNot(Equal(resp.Data[1].Embedding))
+			})
 		})
 
 		Context("backends", func() {
@@ -673,7 +715,12 @@ var _ = Describe("API test", func() {
 			c, cancel = context.WithCancel(context.Background())
 
 			var err error
-			app, err = App(options.WithContext(c), options.WithModelLoader(modelLoader), options.WithConfigFile(os.Getenv("CONFIG_FILE")))
+			app, err = App(
+				append(commonOpts,
+					options.WithContext(c),
+					options.WithModelLoader(modelLoader),
+					options.WithConfigFile(os.Getenv("CONFIG_FILE")))...,
+			)
 			Expect(err).ToNot(HaveOccurred())
 			go app.Listen("127.0.0.1:9090")
 
@@ -695,7 +742,7 @@ var _ = Describe("API test", func() {
 		It("can generate chat completions from config file", func() {
 			models, err := client.ListModels(context.TODO())
 			Expect(err).ToNot(HaveOccurred())
-			Expect(len(models.Models)).To(Equal(12))
+			Expect(len(models.Models)).To(Equal(13))
 		})
 		It("can generate chat completions from config file", func() {
 			resp, err := client.CreateChatCompletion(context.TODO(), openai.ChatCompletionRequest{Model: "list1", Messages: []openai.ChatCompletionMessage{openai.ChatCompletionMessage{Role: "user", Content: "abcdedfghikl"}}})

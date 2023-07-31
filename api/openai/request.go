@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -8,13 +9,18 @@ import (
 	"strings"
 
 	config "github.com/go-skynet/LocalAI/api/config"
+	options "github.com/go-skynet/LocalAI/api/options"
 	model "github.com/go-skynet/LocalAI/pkg/model"
 	"github.com/gofiber/fiber/v2"
 	"github.com/rs/zerolog/log"
 )
 
-func readInput(c *fiber.Ctx, loader *model.ModelLoader, randomModel bool) (string, *OpenAIRequest, error) {
+func readInput(c *fiber.Ctx, o *options.Option, randomModel bool) (string, *OpenAIRequest, error) {
+	loader := o.Loader
 	input := new(OpenAIRequest)
+	ctx, cancel := context.WithCancel(o.Context)
+	input.Context = ctx
+	input.Cancel = cancel
 	// Get input data from the request body
 	if err := c.BodyParser(input); err != nil {
 		return "", nil, err
@@ -63,6 +69,22 @@ func updateConfig(config *config.Config, input *OpenAIRequest) {
 	}
 	if input.TopP != 0 {
 		config.TopP = input.TopP
+	}
+
+	if input.NegativePromptScale != 0 {
+		config.NegativePromptScale = input.NegativePromptScale
+	}
+
+	if input.NegativePrompt != "" {
+		config.NegativePrompt = input.NegativePrompt
+	}
+
+	if input.RopeFreqBase != 0 {
+		config.RopeFreqBase = input.RopeFreqBase
+	}
+
+	if input.RopeFreqScale != 0 {
+		config.RopeFreqScale = input.RopeFreqScale
 	}
 
 	if input.Grammar != "" {
@@ -161,7 +183,7 @@ func updateConfig(config *config.Config, input *OpenAIRequest) {
 		n, exists := fnc["name"]
 		if exists {
 			nn, e := n.(string)
-			if !e {
+			if e {
 				name = nn
 			}
 		}

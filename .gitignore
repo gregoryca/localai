@@ -3,9 +3,10 @@ go-llama
 /gpt4all
 go-stable-diffusion
 go-piper
+/go-bert
 go-ggllm
 /piper
-
+__pycache__/
 *.a
 get-sources
 
@@ -35,29 +36,5 @@ release/
 
 # Generated during build
 backend-assets/
-
+prepare
 /ggml-metal.metal
-.env
-/pictures
-cuda_12.0.0_525.60.13_linux.run
-myapp
-helloworld.cu
-./README.md
-get-pip.py
-.gitignore
-redis/dump.rdb
-
-model/alpaca.tmpl
-model/ggml-all-MiniLM-L6-v2-f16.bin
-model/ggml-all-MiniLM-L6-v2-f16.bin.tmpl
-model/ggml-gpt4all-chat.tmpl
-model/ggml-gpt4all-completion.tmpl
-model/ggml-gpt4all-j.yaml
-model/ggml-model-gpt4all-falcon-q4_0.bin
-model/ggml-model-gpt4all-falcon-q4_0.bin.tmpl
-model/ggml.yml
-model/gpt4all-chat.tmpl
-model/gpt4all-completion.tmpl
-model/gpt4all-j.yaml
-model/vicuna-completion.tmpl
-model/vicuna.yml

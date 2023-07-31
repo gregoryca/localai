@@ -18,15 +18,17 @@ import (
 )
 
 func ChatEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fiber.Ctx) error {
+	emptyMessage := ""
+
 	process := func(s string, req *OpenAIRequest, config *config.Config, loader *model.ModelLoader, responses chan OpenAIResponse) {
 		initialMessage := OpenAIResponse{
 			Model:   req.Model, // we have to return what the user sent here, due to OpenAI spec.
-			Choices: []Choice{{Delta: &Message{Role: "assistant"}}},
+			Choices: []Choice{{Delta: &Message{Role: "assistant", Content: &emptyMessage}}},
 			Object:  "chat.completion.chunk",
 		}
 		responses <- initialMessage
 
-		ComputeChoices(s, req.N, config, o, loader, func(s string, c *[]Choice) {}, func(s string) bool {
+		ComputeChoices(req, s, config, o, loader, func(s string, c *[]Choice) {}, func(s string) bool {
 			resp := OpenAIResponse{
 				Model:   req.Model, // we have to return what the user sent here, due to OpenAI spec.
 				Choices: []Choice{{Delta: &Message{Content: &s}, Index: 0}},
@@ -41,12 +43,12 @@ func ChatEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fiber.Ctx)
 	return func(c *fiber.Ctx) error {
 		processFunctions := false
 		funcs := grammar.Functions{}
-		model, input, err := readInput(c, o.Loader, true)
+		modelFile, input, err := readInput(c, o, true)
 		if err != nil {
 			return fmt.Errorf("failed reading parameters from request:%w", err)
 		}
 
-		config, input, err := readConfig(model, input, cm, o.Loader, o.Debug, o.Threads, o.ContextSize, o.F16)
+		config, input, err := readConfig(modelFile, input, cm, o.Loader, o.Debug, o.Threads, o.ContextSize, o.F16)
 		if err != nil {
 			return fmt.Errorf("failed reading parameters from request:%w", err)
 		}
@@ -108,9 +110,10 @@ func ChatEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fiber.Ctx)
 		var predInput string
 
 		mess := []string{}
-		for _, i := range input.Messages {
+		for messageIndex, i := range input.Messages {
 			var content string
 			role := i.Role
+
 			// if function call, we might want to customize the role so we can display better that the "assistant called a json action"
 			// if an "assistant_function_call" role is defined, we use it, otherwise we use the role that is passed by in the request
 			if i.FunctionCall != nil && i.Role == "assistant" {
@@ -122,31 +125,55 @@ func ChatEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fiber.Ctx)
 			}
 			r := config.Roles[role]
 			contentExists := i.Content != nil && *i.Content != ""
-			if r != "" {
-				if contentExists {
-					content = fmt.Sprint(r, " ", *i.Content)
+			// First attempt to populate content via a chat message specific template
+			if config.TemplateConfig.ChatMessage != "" {
+				chatMessageData := model.ChatMessageTemplateData{
+					SystemPrompt: config.SystemPrompt,
+					Role:         r,
+					RoleName:     role,
+					Content:      *i.Content,
+					MessageIndex: messageIndex,
 				}
-				if i.FunctionCall != nil {
-					j, err := json.Marshal(i.FunctionCall)
-					if err == nil {
-						if contentExists {
-							content += "\n" + fmt.Sprint(r, " ", string(j))
-						} else {
-							content = fmt.Sprint(r, " ", string(j))
+				templatedChatMessage, err := o.Loader.EvaluateTemplateForChatMessage(config.TemplateConfig.ChatMessage, chatMessageData)
+				if err != nil {
+					log.Error().Msgf("error processing message %+v using template \"%s\": %v. Skipping!", chatMessageData, config.TemplateConfig.ChatMessage, err)
+				} else {
+					if templatedChatMessage == "" {
+						log.Warn().Msgf("template \"%s\" produced blank output for %+v. Skipping!", config.TemplateConfig.ChatMessage, chatMessageData)
+						continue // TODO: This continue is here intentionally to skip over the line `mess = append(mess, content)` below, and to prevent the sprintf
+					}
+					log.Debug().Msgf("templated message for chat: %s", templatedChatMessage)
+					content = templatedChatMessage
+				}
+			}
+			// If this model doesn't have such a template, or if
+			if content == "" {
+				if r != "" {
+					if contentExists {
+						content = fmt.Sprint(r, " ", *i.Content)
+					}
+					if i.FunctionCall != nil {
+						j, err := json.Marshal(i.FunctionCall)
+						if err == nil {
+							if contentExists {
+								content += "\n" + fmt.Sprint(r, " ", string(j))
+							} else {
+								content = fmt.Sprint(r, " ", string(j))
+							}
 						}
 					}
-				}
-			} else {
-				if contentExists {
-					content = fmt.Sprint(*i.Content)
-				}
-				if i.FunctionCall != nil {
-					j, err := json.Marshal(i.FunctionCall)
-					if err == nil {
-						if contentExists {
-							content += "\n" + string(j)
-						} else {
-							content = string(j)
+				} else {
+					if contentExists {
+						content = fmt.Sprint(*i.Content)
+					}
+					if i.FunctionCall != nil {
+						j, err := json.Marshal(i.FunctionCall)
+						if err == nil {
+							if contentExists {
+								content += "\n" + string(j)
+							} else {
+								content = string(j)
+							}
 						}
 					}
 				}
@@ -179,10 +206,7 @@ func ChatEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fiber.Ctx)
 		}
 
 		// A model can have a "file.bin.tmpl" file associated with a prompt template prefix
-		templatedInput, err := o.Loader.TemplatePrefix(templateFile, struct {
-			Input     string
-			Functions []grammar.Function
-		}{
+		templatedInput, err := o.Loader.EvaluateTemplateForPrompt(model.ChatPromptTemplate, templateFile, model.PromptTemplateData{
 			Input:     predInput,
 			Functions: funcs,
 		})
@@ -211,7 +235,12 @@ func ChatEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fiber.Ctx)
 					enc.Encode(ev)
 
 					log.Debug().Msgf("Sending chunk: %s", buf.String())
-					fmt.Fprintf(w, "data: %v\n", buf.String())
+					_, err := fmt.Fprintf(w, "data: %v\n", buf.String())
+					if err != nil {
+						log.Debug().Msgf("Sending chunk failed: %v", err)
+						input.Cancel()
+						break
+					}
 					w.Flush()
 				}
 
@@ -221,7 +250,7 @@ func ChatEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fiber.Ctx)
 						{
 							FinishReason: "stop",
 							Index:        0,
-							Delta:        &Message{},
+							Delta:        &Message{Content: &emptyMessage},
 						}},
 					Object: "chat.completion.chunk",
 				}
@@ -234,7 +263,7 @@ func ChatEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fiber.Ctx)
 			return nil
 		}
 
-		result, err := ComputeChoices(predInput, input.N, config, o, o.Loader, func(s string, c *[]Choice) {
+		result, err := ComputeChoices(input, predInput, config, o, o.Loader, func(s string, c *[]Choice) {
 			if processFunctions {
 				// As we have to change the result before processing, we can't stream the answer (yet?)
 				ss := map[string]interface{}{}
@@ -276,7 +305,7 @@ func ChatEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fiber.Ctx)
 					// Otherwise ask the LLM to understand the JSON output and the context, and return a message
 					// Note: This costs (in term of CPU) another computation
 					config.Grammar = ""
-					predFunc, err := backend.ModelInference(predInput, o.Loader, *config, o, nil)
+					predFunc, err := backend.ModelInference(input.Context, predInput, o.Loader, *config, o, nil)
 					if err != nil {
 						log.Error().Msgf("inference error: %s", err.Error())
 						return
@@ -300,7 +329,7 @@ func ChatEndpoint(cm *config.ConfigLoader, o *options.Option) func(c *fiber.Ctx)
 
 				return
 			}
-			*c = append(*c, Choice{Message: &Message{Role: "assistant", Content: &s}})
+			*c = append(*c, Choice{FinishReason: "stop", Index: 0, Message: &Message{Role: "assistant", Content: &s}})
 		}, nil)
 		if err != nil {
 			return err

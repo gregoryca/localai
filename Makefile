@@ -4,33 +4,24 @@ GOVET=$(GOCMD) vet
 BINARY_NAME=local-ai
 
 # llama.cpp versions
-# Temporarly pinned to https://github.com/go-skynet/go-llama.cpp/pull/124
-GOLLAMA_VERSION?=cb8d7cd4cb95725a04504a9e3a26dd72a12b69ac
-
-# Temporary set a specific version of llama.cpp
-# containing: https://github.com/ggerganov/llama.cpp/pull/1773 and
-# rebased on top of master.
-# This pin can be dropped when the PR above is merged, and go-llama has merged changes as well
-# Set empty to use the version pinned by go-llama
-LLAMA_CPP_REPO?=https://github.com/mudler/llama.cpp
-LLAMA_CPP_VERSION?=48ce8722a05a018681634af801fd0fd45b3a87cc
+GOLLAMA_VERSION?=6ba16de8e965e5aa0f32d25ef9d6149bb6586565
 
 # gpt4all version
 GPT4ALL_REPO?=https://github.com/nomic-ai/gpt4all
-GPT4ALL_VERSION?=d611d107479f3f5111f942c5e75ead9f2a3baca0
+GPT4ALL_VERSION?=9100b2ef6fb95a1c49a3e033980d555818f01901
 
 # go-ggml-transformers version
-GOGGMLTRANSFORMERS_VERSION?=8e31841dcddca16468c11b2e7809f279fa76a832
+GOGGMLTRANSFORMERS_VERSION?=ffb09d7dd71e2cbc6c5d7d05357d230eea6f369a
 
 # go-rwkv version
 RWKV_REPO?=https://github.com/donomii/go-rwkv.cpp
-RWKV_VERSION?=f5a8c45396741470583f59b916a2a7641e63bcd0
+RWKV_VERSION?=c898cd0f62df8f2a7830e53d1d513bef4f6f792b
 
 # whisper.cpp version
 WHISPER_CPP_VERSION?=85ed71aaec8e0612a84c0b67804bde75aa75a273
 
 # bert.cpp version
-BERT_VERSION?=6069103f54b9969c02e789d0fb12a23bd614285f
+BERT_VERSION?=6abe312cded14042f6b7c3cd8edf082713334a4d
 
 # go-piper version
 PIPER_VERSION?=56b8a81b4760a6fbee1a82e62f007ae7e8f010a7
@@ -188,7 +179,7 @@ go-ggml-transformers:
 	cd go-ggml-transformers && git checkout -b build $(GOGPT2_VERSION) && git submodule update --init --recursive --depth 1
 
 go-ggml-transformers/libtransformers.a: go-ggml-transformers
-	$(MAKE) -C go-ggml-transformers libtransformers.a
+	$(MAKE) -C go-ggml-transformers BUILD_TYPE=$(BUILD_TYPE) libtransformers.a
 
 whisper.cpp:
 	git clone https://github.com/ggerganov/whisper.cpp.git
@@ -200,9 +191,6 @@ whisper.cpp/libwhisper.a: whisper.cpp
 go-llama:
 	git clone --recurse-submodules https://github.com/go-skynet/go-llama.cpp go-llama
 	cd go-llama && git checkout -b build $(GOLLAMA_VERSION) && git submodule update --init --recursive --depth 1
-ifneq ($(LLAMA_CPP_REPO),)
-	cd go-llama && rm -rf llama.cpp && git clone $(LLAMA_CPP_REPO) llama.cpp && cd llama.cpp && git checkout -b build $(LLAMA_CPP_VERSION) && git submodule update --init --recursive --depth 1
-endif
 
 go-llama/libbinding.a: go-llama
 	$(MAKE) -C go-llama BUILD_TYPE=$(BUILD_TYPE) libbinding.a
@@ -248,7 +236,8 @@ prepare: prepare-sources $(OPTIONAL_TARGETS)
 
 clean: ## Remove build related file
 	$(GOCMD) clean -cache
-	rm -fr ./go-llama
+	rm -f prepare
+	rm -rf ./go-llama
 	rm -rf ./gpt4all
 	rm -rf ./go-gpt2
 	rm -rf ./go-stable-diffusion
@@ -272,9 +261,6 @@ build: grpcs prepare ## Build the project
 	$(info ${GREEN}I LD_FLAGS: ${YELLOW}$(LD_FLAGS)${RESET})
 
 	CGO_LDFLAGS="$(CGO_LDFLAGS)" $(GOCMD) build -ldflags "$(LD_FLAGS)" -tags "$(GO_TAGS)" -o $(BINARY_NAME) ./
-ifeq ($(BUILD_TYPE),metal)
-	cp go-llama/build/bin/ggml-metal.metal .
-endif
 
 dist: build
 	mkdir -p release
@@ -303,7 +289,7 @@ test: prepare test-models/testmodel grpcs
 	@echo 'Running tests'
 	export GO_TAGS="tts stablediffusion"
 	$(MAKE) prepare-test
-	TEST_DIR=$(abspath ./)/test-dir/ FIXTURES=$(abspath ./)/tests/fixtures CONFIG_FILE=$(abspath ./)/test-models/config.yaml MODELS_PATH=$(abspath ./)/test-models \
+	HUGGINGFACE_GRPC=$(abspath ./)/extra/grpc/huggingface/huggingface.py TEST_DIR=$(abspath ./)/test-dir/ FIXTURES=$(abspath ./)/tests/fixtures CONFIG_FILE=$(abspath ./)/test-models/config.yaml MODELS_PATH=$(abspath ./)/test-models \
 	$(GOCMD) run github.com/onsi/ginkgo/v2/ginkgo --label-filter="!gpt4all && !llama" --flake-attempts 5 -v -r ./api ./pkg
 	$(MAKE) test-gpt4all
 	$(MAKE) test-llama
@@ -328,9 +314,7 @@ test-stablediffusion: prepare-test
 
 test-container:
 	docker build --target requirements -t local-ai-test-container .
-	docker run --name localai-tests -e GO_TAGS=$(GO_TAGS) -ti -v $(abspath ./):/build local-ai-test-container make test
-	docker rm localai-tests
-	docker rmi local-ai-test-container
+	docker run -ti --rm --entrypoint /bin/bash -ti -v $(abspath ./):/build local-ai-test-container
 
 ## Help:
 help: ## Show this help.
@@ -344,9 +328,14 @@ help: ## Show this help.
 		else if (/^## .*$$/) {printf "  ${CYAN}%s${RESET}\n", substr($$1,4)} \
 		}' $(MAKEFILE_LIST)
 
-protogen:
+protogen: protogen-go protogen-python
+
+protogen-go:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative \
     pkg/grpc/proto/backend.proto
+
+protogen-python:
+	python -m grpc_tools.protoc -Ipkg/grpc/proto/ --python_out=extra/grpc/huggingface/ --grpc_python_out=extra/grpc/huggingface/ pkg/grpc/proto/backend.proto
 
 ## GRPC
 
@@ -360,6 +349,10 @@ backend-assets/grpc/falcon: backend-assets/grpc go-ggllm/libggllm.a
 backend-assets/grpc/llama: backend-assets/grpc go-llama/libbinding.a
 	CGO_LDFLAGS="$(CGO_LDFLAGS)" C_INCLUDE_PATH=$(shell pwd)/go-llama LIBRARY_PATH=$(shell pwd)/go-llama \
 	$(GOCMD) build -ldflags "$(LD_FLAGS)" -tags "$(GO_TAGS)" -o backend-assets/grpc/llama ./cmd/grpc/llama/
+# TODO: every binary should have its own folder instead, so can have different metal implementations
+ifeq ($(BUILD_TYPE),metal)
+	cp go-llama/build/bin/ggml-metal.metal backend-assets/grpc/
+endif
 
 backend-assets/grpc/gpt4all: backend-assets/grpc backend-assets/gpt4all gpt4all/gpt4all-bindings/golang/libgpt4all.a
 	CGO_LDFLAGS="$(CGO_LDFLAGS)" C_INCLUDE_PATH=$(shell pwd)/gpt4all/gpt4all-bindings/golang/ LIBRARY_PATH=$(shell pwd)/gpt4all/gpt4all-bindings/golang/ \
