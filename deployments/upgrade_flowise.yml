@@ -6,13 +6,13 @@
   #Stopping container
     - name: Stop the docker container, flowise-ai
       docker_container:
-        name: flowise-ai
+        name: localai.flowise
         state: stopped
 
   #Removing/Deleting container
     - name: Remove container, flowise-ai
       docker_container:
-        name: flowise-ai
+        name: localai.flowise
         state: absent
 
   #Removing/Deleting Image
