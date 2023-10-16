@@ -4,18 +4,18 @@ services:
   api:
     container_name: localai
     hostname: localai
-    image: quay.io/go-skynet/local-ai:master-cublas-cuda12
+    image: quay.io/go-skynet/local-ai:latest #quay.io/go-skynet/local-ai:master-cublas-cuda12
     tty: true
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     restart: always
     ports:
-      - 8080:8080
+      - 7070:8080
     env_file:
       - .env
     volumes:
@@ -27,8 +27,8 @@ services:
     hostname: localai.flowise
     image: flowiseai/flowise:latest
     restart: always
-    ports:
-        - 3000:3000
+    # ports:
+    #     - 3000:3000
     environment:
       - EXECUTION_MODE=main
       - DEBUG=true
@@ -37,6 +37,8 @@ services:
         - ~/.flowise:/root/.flowise
         - ./logs/:/logs/
     command: /bin/sh -c "sleep 3; flowise start"
+    networks:
+      - web-secure
 
   redis:
     image: redis:6.2.6
@@ -49,4 +51,8 @@ services:
     environment:
       - REDIS_REPLICATION_MODE=master
     ports:
-      - 6379:6379
+      - 6380:6379
+
+networks:
+  web-secure:
+    external: true
