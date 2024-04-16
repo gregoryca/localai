@@ -1,10 +1,8 @@
-version: '3.6'
-
 services:
   api:
     container_name: localai
     hostname: localai
-    image: quay.io/go-skynet/local-ai:latest #quay.io/go-skynet/local-ai:master-cublas-cuda12
+    image: localai/localai:latest-aio-cpu #quay.io/go-skynet/local-ai:master-cublas-cuda12
     tty: true
     # deploy:
     #   resources:
@@ -40,18 +38,18 @@ services:
     networks:
       - web-secure
 
-  redis:
-    image: redis:6.2.6
-    hostname: localai.redis
-    container_name: localai.redis
-    command: "redis-server --requirepass false"
-    volumes:
-      - ./redis:/data
-    restart: unless-stopped
-    environment:
-      - REDIS_REPLICATION_MODE=master
-    ports:
-      - 6380:6379
+  # redis:
+  #   image: redis:6.2.6
+  #   hostname: localai.redis
+  #   container_name: localai.redis
+  #   command: "redis-server --requirepass false"
+  #   volumes:
+  #     - ./redis:/data
+  #   restart: unless-stopped
+  #   environment:
+  #     - REDIS_REPLICATION_MODE=master
+  #   ports:
+  #     - 6380:6379
 
 networks:
   web-secure:
