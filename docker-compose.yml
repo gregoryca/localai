@@ -1,0 +1,29 @@
+services:
+  api:
+    container_name: localai
+    image: localai/localai:latest-gpu-nvidia-cuda-12
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/readyz"]
+      interval: 1m
+      timeout: 20m
+      retries: 5
+    # ports:
+    #   - 8080:8080
+    shm_size: 2gb
+    environment:
+      - 'GALLERIES=[{"name":"huggingface", "url": "github:go-skynet/model-gallery/huggingface.yaml"}]'
+    volumes:
+      - ./models:/models
+    env_file:
+      - .env
+    network_mode: host
+    restart: always
+    # CDI driver configuration (recommended for NVIDIA Container Toolkit 1.14+)
+    # This uses the nvidia.com/gpu resource API
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+              count: 1
