@@ -15,6 +15,7 @@ services:
       - LOCALAI_DISABLE_GUESSING=true
       # Force llama.cpp parameters to skip MTP nextn sequence evaluation
       - LLAMACPP_ARGS="--cont-batching=false"
+      - LOCALAI_MODEL_LOAD_FAILURE_COOLDOWN=0
     restart: always
     # CDI driver configuration (recommended for NVIDIA Container Toolkit 1.14+)
     # This uses the nvidia.com/gpu resource API
