@@ -8,18 +8,14 @@ on:
         required: false
         type: string
         default: "alienware.headscale.node"
-      DOCKER_STACK_NAME:
-        description: Stack name override for selected host(s).
-        required: true
-        type: string
-        default: localai
-      DOCKER_COMPOSE_FILE:
+      compose_deploy_docker_stack_name: ${{ inputs.compose_deploy_docker_stack_name }}
+      compose_deploy_docker_compose_file:
         description: Compose file override, relative to each stack path.
         required: true
         type: string
         default: docker-compose.yml
-      DOCKER_STACK_PATH:
-        description: Optional absolute stack directory override; leave blank to use the role's per-host default.
+      deploy_user:
+        description: User to connect to the hosts.
         required: false
         type: string
         default: ""
@@ -38,9 +34,10 @@ jobs:
     uses: gregoryca/apex-migrations-framework/.github/workflows/deploy-compose.yml@main
     with:
       DEPLOY_HOST: ${{ inputs.DEPLOY_HOST }}
-      DOCKER_STACK_NAME: ${{ inputs.DOCKER_STACK_NAME }}
-      DOCKER_COMPOSE_FILE: ${{ inputs.DOCKER_COMPOSE_FILE }}
-      DOCKER_STACK_PATH: ${{ inputs.DOCKER_STACK_PATH }}
+      compose_deploy_docker_stack_name: ${{ inputs.compose_deploy_docker_stack_name }}
+      compose_deploy_docker_compose_file: ${{ inputs.compose_deploy_docker_compose_file }}
+      compose_deploy_docker_stack_path: ${{ inputs.compose_deploy_docker_stack_path }}
+      deploy_user: ${{ inputs.deploy_user }}
     secrets:
       ANSIBLE_SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
       TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
