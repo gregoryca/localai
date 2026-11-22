@@ -1,0 +1,47 @@
+name: Deploy Compose file for LocalAI
+
+on:
+  workflow_dispatch:
+    inputs:
+      DEPLOY_HOST:
+        description: Optional target hostname (devops.headscale.node or nextcloud.headscale.node); leave blank for both.
+        required: false
+        type: string
+        default: "alienware.headscale.node"
+      DOCKER_STACK_NAME:
+        description: Stack name override for selected host(s).
+        required: true
+        type: string
+        default: localai
+      DOCKER_COMPOSE_FILE:
+        description: Compose file override, relative to each stack path.
+        required: true
+        type: string
+        default: docker-compose.yml
+      DOCKER_STACK_PATH:
+        description: Optional absolute stack directory override; leave blank to use the role's per-host default.
+        required: false
+        type: string
+        default: ""
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    uses: gregoryca/apex-migrations-framework/.github/workflows/deploy-compose.yml@main
+    with:
+      DEPLOY_HOST: ${{ inputs.DEPLOY_HOST }}
+      DOCKER_STACK_NAME: ${{ inputs.DOCKER_STACK_NAME }}
+      DOCKER_COMPOSE_FILE: ${{ inputs.DOCKER_COMPOSE_FILE }}
+      DOCKER_STACK_PATH: ${{ inputs.DOCKER_STACK_PATH }}
+    secrets:
+      ANSIBLE_SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+      TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+      REPO_ACCESS_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
