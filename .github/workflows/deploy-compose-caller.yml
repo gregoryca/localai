@@ -1,14 +1,18 @@
-name: Deploy Compose file for LocalAI
+name: Deploy Compose file for Authelia
 
 on:
   workflow_dispatch:
     inputs:
       DEPLOY_HOST:
-        description: Optional target hostname (devops.headscale.node or nextcloud.headscale.node); leave blank for both.
+        description: Optional target hostname (alienware.headscale.node or nextcloud.headscale.node); leave blank for both.
         required: false
         type: string
         default: "alienware.headscale.node"
-      compose_deploy_docker_stack_name: ${{ inputs.compose_deploy_docker_stack_name }}
+      compose_deploy_docker_stack_name:
+        description: Stack name override for selected host(s).
+        required: true
+        type: string
+        default: localai
       compose_deploy_docker_compose_file:
         description: Compose file override, relative to each stack path.
         required: true
@@ -18,13 +22,15 @@ on:
         description: User to connect to the hosts.
         required: false
         type: string
-        default: ""
+        default: "gregory"
   push:
     branches:
       - main
+      - master
   pull_request:
     branches:
       - main
+      - master
 
 permissions:
   contents: read
